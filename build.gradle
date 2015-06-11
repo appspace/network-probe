@@ -1,0 +1,82 @@
+group 'ca.appspace'
+version '1.0'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'Network and RXJava',
+                'Implementation-Version': version,
+                'Main-Class': 'ca.appspace.netprobe.Main'
+
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations { sshAntTask }
+
+dependencies {
+    compile 'io.reactivex:rxjava:1.0.11'
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+    sshAntTask 'org.apache.ant:ant-jsch:1.9.5', 'com.jcraft:jsch:0.1.53'
+}
+
+ant.taskdef(
+        name: 'scp',
+        description: 'Secure copy file(s) to remote location',
+        classname: 'org.apache.tools.ant.taskdefs.optional.ssh.Scp',
+        classpath: configurations.sshAntTask.asPath
+)
+
+ant.taskdef(
+        name: 'sshexec',
+        description: 'Execute command on a remote machine using SSG',
+        classname: 'org.apache.tools.ant.taskdefs.optional.ssh.SSHExec',
+        classpath: configurations.sshAntTask.asPath
+)
+
+task uploadToRaspberry(dependsOn: ':jar') << {
+    ant.scp(
+            file: file("build/libs/network-probe-1.0.jar"),
+            todir: "${scp_user}@${scp_host}:~/rxsockets/network-probe-1.0.jar",
+            password: "${scp_password}",
+            port: "${scp_port}"
+    )
+    ant.scp(
+            file: file("startup-script/startup.sh"),
+            todir: "${scp_user}@${scp_host}:~/rxsockets/startup.sh",
+            password: "${scp_password}",
+            port: "${scp_port}"
+    )
+    ant.sshexec(
+            trust: "true",
+            verbose: "true",
+            host: "${scp_host}",
+            username: "${scp_user}",
+            port: "${scp_port}",
+            password: "${scp_password}",
+            command: "chmod 744 ~/rxsockets/startup.sh "
+    )
+}
+
+task copyToLib( type: Copy ) {
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+}
+
+task uploadLibrariesToRaspberry(dependsOn: ':copyToLib') << {
+    for (libFile in fileTree(dir: "$buildDir/libs/lib", include: '*.jar', exclude: 'pi4j-core-*.jar')) {
+        ant.scp(
+                file: libFile,
+                todir: "${scp_user}@${scp_host}:~/rxsockets/libs/"+libFile.name,
+                password: "${scp_password}",
+                port: "${scp_port}"
+        )
+    }
+}
