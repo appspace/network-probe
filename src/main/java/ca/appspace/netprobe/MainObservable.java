@@ -48,7 +48,13 @@ public class MainObservable {
                 try {
                     if (socketChannel != null) {
                         SocketAddress remoteAddress = socketChannel.getRemoteAddress();
-                        StringBuilder sb = new StringBuilder("Received TCP connection: ");
+                        SocketAddress localAddress = socketChannel.getLocalAddress();
+                        StringBuilder sb = new StringBuilder("Received TCP connection");
+                        if (localAddress instanceof InetSocketAddress) {
+                            sb.append(" on port ");
+                            sb.append(((InetSocketAddress)localAddress).getPort());
+                        }
+                        sb.append(": ");
                         appendAddress(sb, remoteAddress);
                         System.out.println(sb.toString());
 
