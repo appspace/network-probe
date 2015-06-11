@@ -2,8 +2,12 @@ package ca.appspace.netprobe;
 
 import rx.Observable;
 import rx.Subscriber;
+import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.functions.Func1;
+import rx.subjects.AsyncSubject;
+import rx.subjects.PublishSubject;
+import rx.subjects.Subject;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -13,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.Future;
 
 /**
  * Created by Eugene on 2015-06-05.
@@ -25,40 +30,19 @@ public class MainObservable {
 
         final ServerSocketChannel tcpSocketChannel = ServerSocketChannel.open();
         tcpSocketChannel.configureBlocking(false);
+        tcpSocketChannel.socket().bind(new InetSocketAddress(port));
 
-        Observable<ServerSocketChannel> channelObservable = Observable.create(
-                new Observable.OnSubscribe<ServerSocketChannel>() {
-                    @Override
-                    public void call(Subscriber<? super ServerSocketChannel> subscriber) {
-                        System.out.println("channelObservable.call "+subscriber+" invoked");
-                        try {
-                            tcpSocketChannel.socket().bind(new InetSocketAddress(port));
-                        } catch (Exception e) {
-                            subscriber.onError(e);
-                            e.printStackTrace();
-                        }
-                    }
-                });
+        final PublishSubject<SocketChannel> socketChannelPublishSubject = PublishSubject.create();
 
-        Observable<SocketChannel> socketObservable = channelObservable.flatMap(
-                new Func1<ServerSocketChannel, Observable<SocketChannel>>() {
+        socketChannelPublishSubject.flatMap(new Func1<SocketChannel, Observable<?>>() {
             @Override
-            public Observable<SocketChannel> call(final ServerSocketChannel tcpSocketChannel1) {
-                System.out.println("socketObservable.call "+tcpSocketChannel+" invoked");
-                return Observable.create(new Observable.OnSubscribe<SocketChannel>() {
-                    @Override
-                    public void call(Subscriber<? super SocketChannel> subscriber) {
-                        try {
-                            subscriber.onNext(tcpSocketChannel1.accept());
-                        } catch (Exception e) {
-                            subscriber.onError(e);
-                        }
-                    }
-                });
+            public Observable<?> call(SocketChannel socketChannel) {
+                System.out.println("In flatMap");
+                return null;
             }
         });
 
-        socketObservable.subscribe(new Action1<SocketChannel>() {
+        socketChannelPublishSubject.forEach(new Action1<SocketChannel>() {
             @Override
             public void call(SocketChannel socketChannel) {
                 try {
@@ -80,12 +64,27 @@ public class MainObservable {
                     e.printStackTrace();
                 }
             }
+        }, new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                System.out.println("Error in forEach: " + throwable.toString());
+            }
+        }, new Action0() {
+            @Override
+            public void call() {
+                System.out.println("Complete in forEach");
+            }
         });
 
         while (true) {
-            try {   Thread.sleep(100);  } catch (Exception e) {}
-
+            try {
+                socketChannelPublishSubject.onNext(tcpSocketChannel.accept());
+            } catch (Exception e) {
+                e.printStackTrace();
+                socketChannelPublishSubject.onError(e);
+            }
         }
+
     }
 
     private static void appendAddress(StringBuilder sb, SocketAddress remoteAddress) {
