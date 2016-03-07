@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.net.InetSocketAddress;
 
 /**
+ * Test that will be reverted
  * Created by Eugene on 2015-06-11.
  */
 public class ConnectionOpenedEvent implements Serializable {
